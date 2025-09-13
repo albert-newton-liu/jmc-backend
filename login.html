@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+<div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
+    <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">Login</h1>
+    <form id="loginForm" class="space-y-6">
+        <div>
+            <label for="username" class="block text-gray-700 font-medium mb-1">Username</label>
+            <input type="text" id="username" name="username" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" required>
+        </div>
+        <div>
+            <label for="password" class="block text-gray-700 font-medium mb-1">Password</label>
+            <input type="password" id="password" name="password" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" required>
+        </div>
+        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-md transition duration-300">Login</button>
+    </form>
+    <div id="messageBox" class="text-center mt-4 hidden">
+        <p id="messageText" class="text-red-500"></p>
+    </div>
+</div>
+
+<script>
+    const AUTH_URL = './auth.php';
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const messageBox = document.getElementById('messageBox');
+        const messageText = document.getElementById('messageText');
+        
+        messageBox.classList.add('hidden');
+
+        try {
+            const response = await fetch(AUTH_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            const result = await response.json();
+            
+            if (response.ok) {
+                // Login successful, redirect to events management page
+                window.location.href = 'events_mng.html';
+            } else {
+                messageText.textContent = result.message || 'Login failed.';
+                messageBox.classList.remove('hidden');
+            }
+        } catch (error) {
+            messageText.textContent = 'An error occurred. Please try again.';
+            messageBox.classList.remove('hidden');
+        }
+    });
+</script>
+
+</body>
+</html>

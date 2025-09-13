@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Events Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Modal specific styling */
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.6);
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <main class="container max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-lg w-full">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-gray-800">Events Management</h1>
+        </header>
+
+        <!-- Event List Section -->
+        <section class="bg-white p-6 rounded-lg shadow-md">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-semibold text-gray-700">Event List</h2>
+                <button id="addEventBtn"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-md transition">
+                    Add New Event
+                </button>
+            </div>
+            <div id="eventList" class="space-y-4"></div>
+        </section>
+
+        <!-- The Modal for Event Form -->
+        <div id="eventModal"
+            class="fixed inset-0 flex items-center justify-center z-50 transition-opacity duration-300 hidden">
+            <div class="modal-overlay absolute inset-0"></div>
+
+            <div class="bg-white p-8 rounded-xl shadow-2xl z-10 max-w-xl w-full mx-4 relative">
+                <button id="closeModalBtn"
+                    class="absolute top-4 right-4 text-gray-500 hover:text-gray-800 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+
+                <!-- Event Form -->
+                <h2 id="form-title" class="text-2xl font-semibold text-gray-700 mb-4">Create New Event</h2>
+                <form id="eventForm" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="hidden" id="eventId" />
+
+                    <div>
+                        <label for="title" class="block text-gray-700 font-medium mb-1">Title</label>
+                        <input type="text" id="title" required
+                            class="w-full px-4 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500" />
+                    </div>
+
+                    <div>
+                        <label for="posterFile" class="block text-gray-700 font-medium mb-1">Upload Poster</label>
+                        <input type="file" id="posterFile" accept="image/*"
+                            class="w-full px-4 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500" />
+                        <img id="posterPreview" class="mt-2 max-h-40 rounded-md hidden" alt="Poster Preview" />
+                    </div>
+
+                    <div>
+                        <label for="date" class="block text-gray-700 font-medium mb-1">Date</label>
+                        <input type="text" id="date" required
+                            class="w-full px-4 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500" />
+                    </div>
+
+                    <div>
+                        <label for="time" class="block text-gray-700 font-medium mb-1">Time</label>
+                        <input type="text" id="time" value=""
+                            class="w-full px-4 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500" />
+                    </div>
+
+                    <div class="col-span-1 md:col-span-2">
+                        <label for="location" class="block text-gray-700 font-medium mb-1">Location</label>
+                        <input type="text" id="location" required
+                            class="w-full px-4 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500" />
+                    </div>
+
+                    <div class="col-span-1 md:col-span-2 flex justify-end space-x-2 mt-4">
+                        <button type="submit" id="submitButton"
+                            class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-md transition">
+                            Create
+                        </button>
+                        <button type="button" id="cancelButton"
+                            class="bg-gray-400 hover:bg-gray-500 text-white font-semibold py-2 px-6 rounded-md transition hidden">
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Message Box -->
+        <div id="messageBox" class="fixed inset-x-0 bottom-4 flex justify-center z-50 hidden">
+            <div class="bg-gray-800 text-white px-6 py-3 rounded-lg shadow-xl text-center">
+                <p id="messageText"></p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const API_URL = './events_api.php';
+        const UPLOAD_URL = './upload_poster.php';
+        const AUTH_URL = './auth.php';
+
+        async function checkAuth() {
+            try {
+                const res = await fetch(AUTH_URL);
+                if (!res.ok) location.href = 'login.html';
+            } catch {
+                location.href = 'login.html';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAuth();
+            fetchEvents();
+
+            // Modal related elements and event listeners
+            const eventModal = document.getElementById('eventModal');
+            document.getElementById('addEventBtn').addEventListener('click', () => {
+                eventModal.classList.remove('hidden');
+            });
+            document.getElementById('closeModalBtn').addEventListener('click', () => {
+                eventModal.classList.add('hidden');
+                resetForm();
+            });
+            eventModal.addEventListener('click', (e) => {
+                if (e.target.id === 'eventModal') {
+                    eventModal.classList.add('hidden');
+                    resetForm();
+                }
+            });
+
+            // Form event listeners
+            document.getElementById('eventForm').addEventListener('submit', handleFormSubmit);
+            document.getElementById('cancelButton').addEventListener('click', () => {
+                resetForm();
+                eventModal.classList.add('hidden');
+            });
+            document.getElementById('posterFile').addEventListener('change', previewPoster);
+        });
+
+        function previewPoster(e) {
+            const file = e.target.files[0];
+            const preview = document.getElementById('posterPreview');
+            if (file) {
+                preview.src = URL.createObjectURL(file);
+                preview.classList.remove('hidden');
+            } else {
+                preview.classList.add('hidden');
+            }
+        }
+
+        async function fetchEvents() {
+            try {
+                const res = await fetch(API_URL);
+                if (!res.ok) throw new Error('Network error');
+                renderEvents(await res.json());
+            } catch (e) {
+                showMessage(`Failed to fetch: ${e.message}`);
+            }
+        }
+
+        function renderEvents(events) {
+            const list = document.getElementById('eventList');
+            list.innerHTML = '';
+            if (!events.length) {
+                list.innerHTML = '<p class="text-gray-500 text-center">No events found.</p>';
+                return;
+            }
+            events.forEach(ev => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'bg-gray-50 p-4 rounded-lg flex flex-col md:flex-row justify-between items-start md:items-center shadow-sm';
+
+                // Image and Text Container
+                const info = document.createElement('div');
+                info.className = 'flex items-center space-x-4 flex-1 min-w-0 mb-4 md:mb-0';
+
+                // Image element
+                const img = document.createElement('img');
+                img.src = 'https://jubileemulticulturalchurch.com' + ev.poster_url;
+                img.alt = 'Poster';
+                img.className = 'w-24 h-24 object-cover rounded-md flex-shrink-0';
+                
+
+                // Text div
+                const textDiv = document.createElement('div');
+                textDiv.className = 'flex-1 min-w-0';
+                textDiv.innerHTML = `
+                    <div>
+                    <h3 class="font-bold text-gray-800 text-lg break-words">${ev.title}</h3>
+                    <p class="text-gray-600">${ev.date} | ${ev.time}</p>
+                    <p class="text-gray-500 text-sm">${ev.location}</p>
+                    </div>
+                `;
+
+                info.append(img, textDiv);
+
+                // Actions (buttons) container
+                const actions = document.createElement('div');
+                actions.className = 'flex-shrink-0 flex items-center space-x-2';
+                const editBtn = document.createElement('button');
+                editBtn.textContent = 'Edit';
+                editBtn.className = 'bg-yellow-400 hover:bg-yellow-500 text-white font-semibold py-1 px-4 rounded-md transition';
+                editBtn.onclick = () => populateFormForEdit(ev);
+
+                const delBtn = document.createElement('button');
+                delBtn.textContent = 'Delete';
+                delBtn.className = 'bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-4 rounded-md transition';
+                delBtn.onclick = () => deleteEvent(ev.id);
+
+                actions.append(editBtn, delBtn);
+
+                wrapper.append(info, actions);
+                list.appendChild(wrapper);
+            });
+        }
+
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            const id = document.getElementById('eventId').value;
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `${API_URL}?id=${id}` : API_URL;
+
+            let posterUrl = '';
+            const file = document.getElementById('posterFile').files[0];
+            if (file) {
+                const fd = new FormData();
+                fd.append('posterFile', file);
+                try {
+                    const res = await fetch(UPLOAD_URL, { method: 'POST', body: fd });
+                    const data = await res.json();
+                    if (!res.ok || !data.success) throw new Error(data.message || 'Upload failed');
+                    posterUrl = data.posterUrl;
+                   
+                } catch (err) {
+                    return showMessage(`Upload error: ${err.message}`);
+                }
+            } else {
+                const posterPreview = document.getElementById('posterPreview')
+                posterUrl =  posterPreview.getAttribute('path');
+            }
+            
+            const body = JSON.stringify({
+                title: document.getElementById('title').value,
+                posterUrl, date: document.getElementById('date').value,
+                time: document.getElementById('time').value,
+                location: document.getElementById('location').value
+            });
+
+            try {
+                const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message);
+                showMessage(data.message);
+                resetForm();
+                fetchEvents();
+                // Close modal after successful form submission
+                document.getElementById('eventModal').classList.add('hidden');
+            } catch (err) {
+                showMessage(`Error: ${err.message}`);
+            }
+        }
+
+        function populateFormForEdit(ev) {
+            document.getElementById('eventId').value = ev.id;
+            document.getElementById('title').value = ev.title;
+            document.getElementById('date').value = ev.date;
+            document.getElementById('time').value = ev.time;
+            document.getElementById('location').value = ev.location;
+            document.getElementById('form-title').textContent = 'Edit Event';
+            document.getElementById('submitButton').textContent = 'Update';
+            document.getElementById('cancelButton').classList.remove('hidden');
+            const posterPreview = document.getElementById('posterPreview');
+            if (ev.poster_url) {
+                posterPreview.src = 'https://jubileemulticulturalchurch.com' + ev.poster_url; 
+                posterPreview.setAttribute("path",ev.poster_url); 
+                posterPreview.classList.remove('hidden');
+            } else {
+                posterPreview.src = '';
+                posterPreview.classList.add('hidden');
+            }
+            // Show the modal
+            document.getElementById('eventModal').classList.remove('hidden');
+        }
+
+        async function deleteEvent(id) {
+            if (!confirm('Are you sure?')) return;
+            try {
+                const res = await fetch(`${API_URL}?id=${id}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message);
+                showMessage(data.message);
+                fetchEvents();
+            } catch (err) {
+                showMessage(`Error: ${err.message}`);
+            }
+        }
+
+        function resetForm() {
+            document.getElementById('eventForm').reset();
+            document.getElementById('posterPreview').classList.add('hidden');
+            document.getElementById('eventId').value = '';
+            document.getElementById('form-title').textContent = 'Create New Event';
+            document.getElementById('submitButton').textContent = 'Create';
+            document.getElementById('cancelButton').classList.add('hidden');
+        }
+
+        function showMessage(text) {
+            const box = document.getElementById('messageBox');
+            const txt = document.getElementById('messageText');
+            txt.textContent = text;
+            box.classList.remove('hidden');
+            setTimeout(() => box.classList.add('hidden'), 3000);
+        }
+    </script>
+
+</body>
+
+</html>
